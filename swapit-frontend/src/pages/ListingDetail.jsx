@@ -1,3 +1,4 @@
+import { BASE_URL } from '../api/config';
 import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { getListing, toggleFavorite, deleteListing } from '../api/listings';
@@ -79,7 +80,7 @@ export default function ListingDetail() {
           <div className="bg-gray-100 rounded-xl overflow-hidden aspect-square">
             {images ? (
               <img
-                src={`http://localhost:3000${images[currentImg].url}`}
+                src={`${BASE_URL}${images[currentImg].url}`}
                 alt={listing.title}
                 className="w-full h-full object-cover"
               />
@@ -95,7 +96,7 @@ export default function ListingDetail() {
                   onClick={() => setCurrentImg(i)}
                   className={`w-16 h-16 rounded-lg overflow-hidden border-2 ${i === currentImg ? 'border-blue-500' : 'border-transparent'}`}
                 >
-                  <img src={`http://localhost:3000${img.url}`} className="w-full h-full object-cover" />
+                  <img src={`${BASE_URL}${img.url}`} className="w-full h-full object-cover" />
                 </button>
               ))}
             </div>

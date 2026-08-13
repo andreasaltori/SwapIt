@@ -1,3 +1,4 @@
+import { BASE_URL } from '../api/config';
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getUser } from '../api/users';
@@ -37,7 +38,7 @@ export default function Profile() {
       <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm flex items-center gap-5 mb-6">
         <div className="w-20 h-20 rounded-full bg-blue-100 flex items-center justify-center text-3xl text-blue-600 font-bold shrink-0">
           {profile.avatar_url
-            ? <img src={`http://localhost:3000${profile.avatar_url}`} className="w-full h-full rounded-full object-cover" />
+            ? <img src={`${BASE_URL}${profile.avatar_url}`} className="w-full h-full rounded-full object-cover" />
             : profile.username?.[0]?.toUpperCase()
           }
         </div>

@@ -1,3 +1,4 @@
+import { BASE_URL } from '../api/config';
 import { Link } from 'react-router-dom';
 
 // Componente riutilizzabile: mostra un annuncio come "card" (scheda).
@@ -17,7 +18,7 @@ export default function ListingCard({ listing }) {
         <div className="aspect-square bg-gray-100 overflow-hidden">
           {listing.cover_image ? (
             <img
-              src={`http://localhost:3000${listing.cover_image}`}
+              src={`${BASE_URL}${listing.cover_image}`}
               alt={listing.title}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
             />
