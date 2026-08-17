@@ -1,0 +1,52 @@
+# docker-compose.yml — orchestrazione di tutti i servizi dell'app
+#
+# docker-compose permette di avviare più contenitori insieme con un solo comando.
+# Con "docker-compose up", parte sia il backend che il database PostgreSQL,
+# già configurati per parlare tra loro — senza installare nulla sul PC host.
+
+version: '3.8'
+
+services:
+
+  # Il database PostgreSQL
+  db:
+    image: postgres:16-alpine        # immagine ufficiale PostgreSQL
+    container_name: swapit-db
+    environment:
+      POSTGRES_DB: swapit
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data   # i dati persistono tra i riavvii
+      - ./swapit-backend/database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./swapit-backend/database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Il backend Node.js
+  backend:
+    build:
+      context: ./swapit-backend      # usa il Dockerfile nella cartella backend
+    container_name: swapit-backend
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/swapit
+      JWT_SECRET: swapit_secret_esame_2024
+      NODE_ENV: production
+      PORT: 3000
+    ports:
+      - "3000:3000"                  # porta_host:porta_contenitore
+    depends_on:
+      db:
+        condition: service_healthy   # aspetta che il DB sia pronto
+    volumes:
+      - uploads_data:/app/uploads    # le immagini caricate persistono
+
+# Volumi nominati: Docker li gestisce e i dati sopravvivono ai riavvii
+volumes:
+  postgres_data:
+  uploads_data:

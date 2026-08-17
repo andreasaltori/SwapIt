@@ -1,0 +1,8 @@
+# File e cartelle da NON copiare dentro il contenitore Docker
+# Simile al .gitignore ma per Docker
+
+node_modules/
+uploads/
+.env
+*.log
+.git/
