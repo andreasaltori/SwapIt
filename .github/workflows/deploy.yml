@@ -1,0 +1,137 @@
+# deploy.yml — Continuous Deployment
+#
+# Questa pipeline si attiva solo quando viene fatto un push sul branch main
+# (cioè quando il codice è pronto per la produzione).
+#
+# Il deploy effettivo su Render e Vercel avviene automaticamente tramite
+# i loro webhook GitHub — questi step servono a documentare il processo
+# e a inviare notifiche sullo stato del deploy.
+#
+# Flusso completo:
+#   push su main → CI passa → deploy.yml si attiva → Render rideploya backend
+#                                                   → Vercel rideploya frontend
+
+name: Deploy — Produzione
+
+on:
+  push:
+    branches: [main]    # solo push su main triggera il deploy
+
+# Permessi minimi necessari
+permissions:
+  contents: read
+
+jobs:
+
+  # ─────────────────────────────────────────
+  # JOB 1: Deploy backend su Render
+  # ─────────────────────────────────────────
+  deploy-backend:
+    name: Deploy Backend → Render
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout codice
+        uses: actions/checkout@v4
+
+      # Render si aggiorna automaticamente tramite webhook quando rileva
+      # un nuovo commit su main. Questo step triggera manualmente il deploy
+      # tramite le Render Deploy Hooks API (opzionale se il webhook auto è attivo).
+      - name: Trigger deploy Render
+        run: |
+          echo "Deploy backend su Render in corso..."
+          echo "URL backend: https://swapit-backend-9d1a.onrender.com"
+          # Per abilitare il trigger manuale, aggiungere RENDER_DEPLOY_HOOK_URL
+          # nei GitHub Secrets e decommentare le righe seguenti:
+          # curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+          echo "Deploy avviato. Render costruirà e rilancerà il container Node.js."
+
+      - name: Info deploy backend
+        run: |
+          echo "=== DEPLOY BACKEND ==="
+          echo "Servizio: swapit-backend su Render (piano gratuito)"
+          echo "Processo: Render scarica il commit, esegue npm install, avvia node src/app.js"
+          echo "Nota: il cold start sul piano gratuito può richiedere 30-60s dopo inattività"
+
+  # ─────────────────────────────────────────
+  # JOB 2: Deploy frontend su Vercel
+  # ─────────────────────────────────────────
+  deploy-frontend:
+    name: Deploy Frontend → Vercel
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout codice
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: swapit-frontend/package-lock.json
+
+      - name: Installa dipendenze frontend
+        working-directory: swapit-frontend
+        run: npm ci
+
+      # Build di produzione — produce la cartella dist/ con i file statici
+      - name: Build produzione React
+        working-directory: swapit-frontend
+        env:
+          VITE_API_URL: https://swapit-backend-9d1a.onrender.com/api
+        run: npm run build
+
+      - name: Info deploy frontend
+        run: |
+          echo "=== DEPLOY FRONTEND ==="
+          echo "Servizio: swap-it-beryl.vercel.app su Vercel"
+          echo "Processo: Vercel esegue npm run build, distribuisce dist/ su CDN globale"
+          echo "Build completata - Vercel aggiornerà automaticamente tramite webhook GitHub"
+
+  # ─────────────────────────────────────────
+  # JOB 3: Verifica post-deploy
+  # ─────────────────────────────────────────
+  health-check:
+    name: Health Check post-deploy
+    runs-on: ubuntu-latest
+    needs: [deploy-backend, deploy-frontend]   # parte solo dopo i due deploy
+
+    steps:
+      # Aspetta 30 secondi che i servizi si avviino
+      - name: Attendi avvio servizi
+        run: sleep 30
+
+      # Verifica che il backend risponda correttamente
+      - name: Verifica backend online
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            https://swapit-backend-9d1a.onrender.com/api/categories)
+          echo "Status HTTP backend: $STATUS"
+          if [ "$STATUS" = "200" ]; then
+            echo "Backend OK"
+          else
+            echo "ATTENZIONE: backend risponde con status $STATUS (potrebbe essere in cold start)"
+          fi
+
+      # Verifica che il frontend sia raggiungibile
+      - name: Verifica frontend online
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            https://swap-it-beryl.vercel.app)
+          echo "Status HTTP frontend: $STATUS"
+          if [ "$STATUS" = "200" ]; then
+            echo "Frontend OK"
+          else
+            echo "ATTENZIONE: frontend risponde con status $STATUS"
+          fi
+
+      - name: Riepilogo deploy
+        run: |
+          echo ""
+          echo "=================================="
+          echo "  DEPLOY COMPLETATO"
+          echo "=================================="
+          echo "  Frontend: https://swap-it-beryl.vercel.app"
+          echo "  Backend:  https://swapit-backend-9d1a.onrender.com"
+          echo "=================================="

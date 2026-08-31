@@ -1,0 +1,115 @@
+# ci.yml — Continuous Integration
+#
+# Questa pipeline si attiva automaticamente ad ogni push su qualsiasi branch
+# e ad ogni Pull Request verso main. Verifica che il codice sia corretto
+# prima di fare il merge o il deploy.
+#
+# Cosa fa:
+#   1. Controlla che il backend Node.js installi le dipendenze correttamente
+#   2. Verifica la sintassi del codice backend
+#   3. Controlla che il frontend React si compili senza errori (npm run build)
+#
+# Se uno step fallisce, GitHub mostra una X rossa sul commit — segnale che
+# qualcosa è rotto e non va messo in produzione.
+
+name: CI — Build & Check
+
+on:
+  push:
+    branches: ["**"]        # ogni push su qualsiasi branch
+  pull_request:
+    branches: [main]        # ogni PR verso main
+
+jobs:
+
+  # ─────────────────────────────────────────
+  # JOB 1: verifica il backend
+  # ─────────────────────────────────────────
+  backend:
+    name: Backend (Node.js)
+    runs-on: ubuntu-latest   # macchina virtuale Linux fornita da GitHub
+
+    steps:
+      # 1. Scarica il codice dal repository
+      - name: Checkout codice
+        uses: actions/checkout@v4
+
+      # 2. Installa Node.js versione 20
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: swapit-backend/package-lock.json
+
+      # 3. Installa le dipendenze del backend
+      - name: Installa dipendenze backend
+        working-directory: swapit-backend
+        run: npm ci   # npm ci è più veloce e rigoroso di npm install in CI
+
+      # 4. Verifica la sintassi di tutti i file JS (node --check non esegue il codice)
+      - name: Verifica sintassi JavaScript
+        working-directory: swapit-backend
+        run: |
+          find src -name "*.js" -exec node --check {} \;
+          echo "Sintassi backend OK"
+
+  # ─────────────────────────────────────────
+  # JOB 2: verifica il frontend
+  # ─────────────────────────────────────────
+  frontend:
+    name: Frontend (React + Vite)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout codice
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: swapit-frontend/package-lock.json
+
+      - name: Installa dipendenze frontend
+        working-directory: swapit-frontend
+        run: npm ci
+
+      # La build di produzione compila React → HTML/CSS/JS statici
+      # Se c'è un errore nel codice React, questo step fallisce
+      - name: Build produzione (Vite)
+        working-directory: swapit-frontend
+        env:
+          # URL del backend in produzione (necessario per la build PWA)
+          VITE_API_URL: https://swapit-backend-9d1a.onrender.com/api
+        run: npm run build
+
+      # Verifica che la cartella dist/ sia stata creata correttamente
+      - name: Verifica output build
+        run: |
+          ls swapit-frontend/dist/
+          echo "Build frontend completata con successo"
+
+  # ─────────────────────────────────────────
+  # JOB 3: verifica Docker
+  # ─────────────────────────────────────────
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout codice
+        uses: actions/checkout@v4
+
+      # Costruisce l'immagine Docker del backend per verificare che il Dockerfile sia valido
+      - name: Build immagine Docker backend
+        run: |
+          docker build -t swapit-backend:ci ./swapit-backend
+          echo "Immagine Docker costruita con successo"
+
+      # Verifica che il docker-compose.yml sia sintatticamente corretto
+      - name: Valida docker-compose.yml
+        run: |
+          docker compose config
+          echo "docker-compose.yml valido"
